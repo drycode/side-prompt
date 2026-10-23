@@ -86,11 +86,14 @@ test('the btw field asks a fork, shows the answer boxed, and toasts', async ($, 
 
   const ui = await $.ui.mount(PANE)
   await ui.press({ key: 'tab-btw' })
+  expect(await ui.find({ type: 'Text', text: /^ btw $/ })).toBeUndefined()
   await ui.input({ key: 'btw', text: 'what is 2+2', kind: 'change' })
   await ui.input({ key: 'btw', text: 'what is 2+2', kind: 'submit' })
 
   expect(asked).toEqual(['what is 2+2'])
   expect((await ui.find({ type: 'Markdown' }))?.text).toBe('four')
+  // The answer box carries its name on its top border.
+  expect(await ui.find({ type: 'Text', text: /^ btw $/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /Answered|Asking/ })).toBeUndefined()
   expect(toasts).toEqual(['btw answered (0.0s)'])
   await ui.unmount()

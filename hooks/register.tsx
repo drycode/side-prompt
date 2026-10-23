@@ -161,9 +161,18 @@ export const register: Register = on => {
 
     const selectTab = async (name: (typeof TABS)[number]) => {
       await update($, tab, () => name)
-      // Waits for the field the next drawing brings, then puts the cursor in it.
-      // Best effort: the keyboard is the person's to give, so a refusal is fine.
-      await $.ui.focus({ requestId: PANE, key: name }).catch(() => undefined)
+      // Put the cursor in the new tab's field so the person can type at once.
+      // Best effort: the keyboard is the person's to give, so a refusal (a
+      // draft in the main prompt box keeps it) leaves the cursor where it is.
+      try {
+        // A click on a tab presses it without giving the pane the keyboard, so
+        // ask for it first (granted only while the main prompt box is empty).
+        await openPane($, { focus: true })
+        // Waits for the field the next drawing brings.
+        await $.ui.focus({ requestId: PANE, key: name })
+      } catch {
+        // Nothing to mend: the tab has switched, only the cursor stayed put.
+      }
     }
 
     const sendPrompt = async (text: string) => {
@@ -211,7 +220,7 @@ export const register: Register = on => {
         <Text italic>{AFFIRMATIONS[affirmation % AFFIRMATIONS.length] ?? ''}</Text>
         <Text dimColor>Enter sends. Esc returns to the main prompt.</Text>
         {isBusy && <Text dimColor>Claude is working...</Text>}
-        <Box>
+        <Box gap={1}>
           {TABS.map(name => (
             <Button
               key={`tab-${name}`}
@@ -244,8 +253,15 @@ export const register: Register = on => {
         )}
         {noteText !== '' && <Text dimColor>{noteText}</Text>}
         {answerText !== '' && (
-          <Box borderStyle="round" paddingX={1}>
-            <Markdown text={answerText} />
+          <Box flexDirection="column">
+            <Box borderStyle="round" paddingX={1}>
+              <Markdown text={answerText} />
+            </Box>
+            {/* The border paints over its own children, so the label is a later
+                sibling, laid on the top border row: ╭── btw ───╮ */}
+            <Box position="absolute" top={0} left={3}>
+              <Text> btw </Text>
+            </Box>
           </Box>
         )}
       </Box>

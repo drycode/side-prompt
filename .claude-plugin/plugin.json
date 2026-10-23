@@ -1,6 +1,6 @@
 {
   "name": "side-prompt",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A pane docked beside the transcript with prompt and side-question tabs, so you can type while you scroll.",
   "author": { "name": "Sean Perkins" },
   "license": "MIT",
