@@ -1,0 +1,6 @@
+{
+  "name": "side-prompt",
+  "description": "A Claude Code mod: a side pane with prompt and side-question tabs.",
+  "owner": { "name": "Sean Perkins" },
+  "plugins": [{ "name": "side-prompt", "source": "./" }]
+}
