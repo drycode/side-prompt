@@ -5,7 +5,7 @@ declare module 'claude-code' {
     'side-prompt': {
       prompt: string
       btw: string
-      note: SideNote
+      note: Shaped<SideNote>
       answer: string
       isWorking: boolean
       affirmationAt: number

@@ -9,7 +9,9 @@ const WAS_OPEN = 'wasOpen'
 
 const prompt = atom({ plugin: 'side-prompt', key: 'prompt' } as const, '')
 const btw = atom({ plugin: 'side-prompt', key: 'btw' } as const, '')
-const note = atom({ plugin: 'side-prompt', key: 'note' } as const, '')
+// Change the tag when what `note` holds changes: it declines the value an
+// earlier version stored, which outlives a reload.
+const note = atom({ plugin: 'side-prompt', key: 'note' } as const, '', { shape: 'note-2' })
 const answer = atom({ plugin: 'side-prompt', key: 'answer' } as const, '')
 const isWorking = atom({ plugin: 'side-prompt', key: 'isWorking' } as const, false)
 const affirmationAt = atom({ plugin: 'side-prompt', key: 'affirmationAt' } as const, 0)
@@ -171,7 +173,7 @@ export const register: Register = on => {
       await update($, prompt, () => '')
       await update($, note, () => 'Prompt queued; it sends when Claude is idle.')
       await $.prompt.submit({ text, asUser: true })
-      await update($, note, () => 'Prompt sent.')
+      await update($, note, () => '')
     }
 
     const askBtw = async (text: string) => {
@@ -190,7 +192,7 @@ export const register: Register = on => {
         if (reply.isAnswered) {
           const took = `${(((await $.clock.now()) - startedAt) / 1000).toFixed(1)}s`
           await update($, answer, () => reply.text)
-          await update($, note, () => `Answered in ${took}.`)
+          await update($, note, () => '')
           $.ui.toast(`btw answered (${took})`)
         } else {
           await fail(
@@ -221,7 +223,6 @@ export const register: Register = on => {
         {activeTab === 'prompt' ? (
           <Input
             key="prompt"
-            label="prompt"
             placeholder="Type here while you scroll"
             rows={5}
             autoFocus
@@ -233,7 +234,6 @@ export const register: Register = on => {
         ) : (
           <Input
             key="btw"
-            label="btw"
             placeholder="Side question about this session"
             autoFocus
             submitLabel="ask"

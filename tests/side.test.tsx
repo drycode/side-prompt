@@ -64,6 +64,8 @@ test('the prompt field sends its text as the person\'s own prompt', async ($, on
   await ui.input({ key: 'prompt', text: 'look at the diff', kind: 'submit' })
 
   expect(sent).toEqual(['look at the diff'])
+  // Once sent, no "queued" or "sent" note is left on screen.
+  expect(await ui.find({ type: 'Text', text: /Prompt (queued|sent)/ })).toBeUndefined()
   await ui.unmount()
 })
 
@@ -89,7 +91,7 @@ test('the btw field asks a fork, shows the answer boxed, and toasts', async ($, 
 
   expect(asked).toEqual(['what is 2+2'])
   expect((await ui.find({ type: 'Markdown' }))?.text).toBe('four')
-  expect(await ui.find({ type: 'Text', text: /Answered in 0\.0s\./ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Answered|Asking/ })).toBeUndefined()
   expect(toasts).toEqual(['btw answered (0.0s)'])
   await ui.unmount()
 })
@@ -189,6 +191,20 @@ test('the tabs show one field at a time', async ($) => {
 
   await ui.press({ key: 'tab-prompt' })
   expect(await ui.find({ key: 'prompt' })).toBeDefined()
+  await ui.unmount()
+})
+
+test('a note an earlier version saved is declined, not left on screen', async ($, on) => {
+  // What the code before this edit wrote stays through the reload.
+  on('state.get', (_, e) =>
+    e.plugin === 'side-prompt' && e.key === 'note'
+      ? { value: { value: 'Answered in 14.1s (Claude working when asked: yes).', version: 1 } }
+      : { value: { value: undefined, version: 0 } },
+  )
+
+  const ui = await $.ui.mount(PANE)
+
+  expect(await ui.find({ type: 'Text', text: /Answered in/ })).toBeUndefined()
   await ui.unmount()
 })
 
