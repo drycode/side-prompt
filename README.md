@@ -2,7 +2,7 @@
 
 A Claude Code mod that docks a pane beside the transcript with prompt and side-question tabs, so you can type while you scroll. The pane opens on a short affirmation.
 
-![The side pane: an affirmation, the prompt and btw tabs, and a btw answer in a labeled box](docs/screenshot.png)
+![The side pane docked beside the transcript: an affirmation, the prompt and btw tabs, and a btw answer in a labeled box, with a toast that it landed](docs/screenshot.png)
 
 ## Install
 
