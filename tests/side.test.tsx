@@ -398,3 +398,18 @@ test('a new session reopens the pane only if it was open last time', async ($, o
   await new Promise(resolve => setTimeout(() => resolve(undefined), 30))
   expect(opened).toEqual(['side-prompt'])
 })
+
+test('the btw answer shows on the btw tab only', async ($, on) => {
+  on('clock.now', () => ({ value: 1000 }))
+  on('ui.toast', () => ({ value: undefined }))
+  on('model.fork', () => FORK_ANSWER)
+
+  const ui = await $.ui.mount(PANE)
+  await ui.press({ key: 'tab-btw' })
+  await ui.input({ key: 'btw', text: 'what is 2+2', kind: 'submit' })
+  expect((await ui.find({ type: 'Markdown' }))?.text).toBe('four')
+
+  await ui.press({ key: 'tab-prompt' })
+  expect(await ui.find({ type: 'Markdown' })).toBeUndefined()
+  await ui.unmount()
+})

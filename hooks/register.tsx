@@ -217,17 +217,22 @@ export const register: Register = on => {
 
     return (
       <Box flexDirection="column">
-        <Text italic>{AFFIRMATIONS[affirmation % AFFIRMATIONS.length] ?? ''}</Text>
-        <Text dimColor>Enter sends. Esc returns to the main prompt.</Text>
-        {isBusy && <Text dimColor>Claude is working...</Text>}
-        <Box gap={1}>
-          {TABS.map(name => (
-            <Button
-              key={`tab-${name}`}
-              label={name === activeTab ? `▸ ${name}` : name}
-              onPress={() => void selectTab(name)}
-            />
-          ))}
+        <Text italic wrap="truncate-end">
+          {AFFIRMATIONS[affirmation % AFFIRMATIONS.length] ?? ''}
+        </Text>
+        <Box justifyContent="space-between">
+          <Box gap={1} flexShrink={0}>
+            {TABS.map(name => (
+              <Button
+                key={`tab-${name}`}
+                label={name === activeTab ? `▸ ${name}` : name}
+                onPress={() => void selectTab(name)}
+              />
+            ))}
+          </Box>
+          <Text dimColor wrap="truncate-end">
+            {isBusy ? 'Claude is working...' : 'esc: main prompt'}
+          </Text>
         </Box>
         {activeTab === 'prompt' ? (
           <Input
@@ -252,7 +257,7 @@ export const register: Register = on => {
           />
         )}
         {noteText !== '' && <Text dimColor>{noteText}</Text>}
-        {answerText !== '' && (
+        {activeTab === 'btw' && answerText !== '' && (
           <Box flexDirection="column">
             <Box borderStyle="round" paddingX={1}>
               <Markdown text={answerText} />

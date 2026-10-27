@@ -43,12 +43,12 @@ claude --plugin-dir ./side-prompt
 - The top line is an affirmation; the next one shows each time Claude finishes a turn. Edit `hooks/affirmations.ts` to change them.
 - Esc returns the keys to the main prompt. Back in the pane: `ctrl+x tab` or a click. Close: `ctrl+x x` (default keys).
 - If the pane was open when a session ended, the next session reopens it. Closing it yourself keeps it closed.
-- The pane says "Claude is working..." while a turn runs.
+- The tab row says "Claude is working..." while a turn runs.
 
 ### The two tabs
 
 - **prompt**: Enter sends the text as a normal prompt. It waits until Claude is idle. `@file` mentions and pasted images are not expanded.
-- **btw**: Enter asks a one-off question over the session so far, with no tools, and shows the answer in a box labeled `btw` in the pane, plus a toast. It is not the built-in `/btw` and its answer is not added to the transcript. Each ask costs tokens and takes a while on a long session (12s idle, 21s mid-response in one check). It has nothing to answer in a new session or right after `/clear`.
+- **btw**: Enter asks a one-off question over the session so far, with no tools, and shows the answer in a box labeled `btw` under the field, plus a toast. It is not the built-in `/btw` and its answer is not added to the transcript. Each ask costs tokens and takes a while on a long session (12s idle, 21s mid-response in one check). It has nothing to answer in a new session or right after `/clear`.
 
 ## Limits
 
