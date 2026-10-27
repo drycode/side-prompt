@@ -1,3 +1,4 @@
+import type { CommandInfo } from 'claude-code'
 import { expect, test } from 'claude-code/testing'
 
 import { AFFIRMATIONS } from '../hooks/affirmations'
@@ -467,5 +468,93 @@ test('the btw field grows with its question, up to a third of the pane', async $
 
   await ui.input({ key: 'btw', text: 'x'.repeat(2000), kind: 'change' })
   expect((await ui.find({ key: 'btw' }))?.props.rows).toBe(10)
+  await ui.unmount()
+})
+
+const COMMANDS: CommandInfo[] = [
+  { name: 'compact', description: 'Clear history but keep a summary', source: 'builtin' },
+  { name: 'cost', description: 'Show the session cost', source: 'builtin' },
+  { name: 'review-kit:review', description: 'Review the current diff', source: 'plugin' },
+]
+
+test('a slash command runs as a command, not as a prompt to Claude', async ($, on) => {
+  const sent: string[] = []
+  const ran: { command: string; args: string }[] = []
+  on('command.list', () => ({ value: COMMANDS }))
+  on('prompt.submit', (_, e) => {
+    sent.push(e.text)
+
+    return { text: e.text }
+  })
+  on('command.run', (_, e) => {
+    ran.push({ command: e.command, args: e.args })
+
+    return { text: '' }
+  })
+
+  const ui = await $.ui.mount(PANE)
+  await ui.input({ key: 'prompt', text: '/compact keep the plan', kind: 'submit' })
+  // A plugin's command answers to its bare name when no other shares it.
+  await ui.input({ key: 'prompt', text: '/review the diff', kind: 'submit' })
+
+  expect(ran).toEqual([
+    { command: 'compact', args: 'keep the plan' },
+    { command: 'review-kit:review', args: 'the diff' },
+  ])
+  expect(sent).toEqual([])
+  expect(await ui.find({ type: 'Text', text: /queued/ })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('text starting with / that names no command stays in the field, never sent', async ($, on) => {
+  const sent: string[] = []
+  on('command.list', () => ({ value: COMMANDS }))
+  on('prompt.submit', (_, e) => {
+    sent.push(e.text)
+
+    return { text: e.text }
+  })
+
+  const ui = await $.ui.mount(PANE)
+  await ui.input({ key: 'prompt', text: '/nope', kind: 'change' })
+  await ui.input({ key: 'prompt', text: '/nope', kind: 'submit' })
+  expect(await ui.find({ type: 'Text', text: /No command \/nope\./ })).toBeDefined()
+  expect((await ui.find({ key: 'prompt' }))?.props.value).toBe('/nope')
+
+  // The engine takes no plugin prompt that starts with /, a path included.
+  const path = '/tmp/notes.md is stale'
+  await ui.input({ key: 'prompt', text: path, kind: 'change' })
+  await ui.input({ key: 'prompt', text: path, kind: 'submit' })
+  expect(await ui.find({ type: 'Text', text: /No command \/tmp\/notes\.md\./ })).toBeDefined()
+  expect((await ui.find({ key: 'prompt' }))?.props.value).toBe(path)
+  expect(sent).toEqual([])
+  await ui.unmount()
+})
+
+test('editing the draft clears the last note', async ($, on) => {
+  on('command.list', () => ({ value: COMMANDS }))
+
+  const ui = await $.ui.mount(PANE)
+  await ui.input({ key: 'prompt', text: '/nope', kind: 'submit' })
+  expect(await ui.find({ type: 'Text', text: /No command/ })).toBeDefined()
+
+  await ui.input({ key: 'prompt', text: '/co', kind: 'change' })
+  expect(await ui.find({ type: 'Text', text: /No command \/nope/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /^\/compact {2}\/cost$/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('while the draft is a slash command, the row under it lists what it could be', async ($, on) => {
+  on('command.list', () => ({ value: COMMANDS }))
+
+  const ui = await $.ui.mount(PANE)
+  await ui.input({ key: 'prompt', text: '/co', kind: 'change' })
+  expect((await ui.find({ type: 'Text', text: /^\/compact/ }))?.text).toBe('/compact  /cost')
+
+  await ui.input({ key: 'prompt', text: '/cost ', kind: 'change' })
+  expect(await ui.find({ type: 'Text', text: /^\/cost: Show the session cost$/ })).toBeDefined()
+
+  await ui.input({ key: 'prompt', text: '/zz', kind: 'change' })
+  expect(await ui.find({ type: 'Text', text: /No command starts with \/zz/ })).toBeDefined()
   await ui.unmount()
 })
