@@ -1,6 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { AFFIRMATIONS } from '../hooks/affirmations'
+import { fieldColumns, submitLabelFor } from '../hooks/fit'
 
 const PANE = {
   plugin: 'side-prompt',
@@ -411,5 +412,60 @@ test('the btw answer shows on the btw tab only', async ($, on) => {
 
   await ui.press({ key: 'tab-prompt' })
   expect(await ui.find({ type: 'Markdown' })).toBeUndefined()
+  await ui.unmount()
+})
+
+// The pane's room, in the shape the engine hands a Pane hook.
+const paneIn = (room: { placement: 'dock' | 'inline'; bodyRows: number; bodyColumns: number }) =>
+  ({
+    ...PANE,
+    props: {
+      ...PANE.props,
+      placement: room.placement,
+      bodyColumns: room.bodyColumns,
+      scroll: { offset: 0, bodyRows: room.bodyRows },
+    },
+  }) as const
+
+test('the engine model: at 52 columns `send` keeps half the field, a longer label keeps more', () => {
+  expect(fieldColumns(52, 'send')).toBe(26)
+  expect(fieldColumns(52, 'send prompt')).toBe(38)
+  expect(submitLabelFor(52, ['send', 'send prompt', 'send · esc to main'])).toBe('send prompt')
+  // Wide enough that the newline hint costs less than any longer label.
+  expect(submitLabelFor(120, ['send', 'send prompt', 'send · esc to main'])).toBe('send')
+})
+
+test('docked, the prompt field fills the pane below its chrome, whatever it holds', async $ => {
+  let ui = await $.ui.mount(paneIn({ placement: 'dock', bodyRows: 40, bodyColumns: 52 }))
+  expect((await ui.find({ key: 'prompt' }))?.props.rows).toBe(36)
+  expect((await ui.find({ key: 'prompt' }))?.props.submitLabel).toBe('send prompt')
+  await ui.unmount()
+
+  ui = await $.ui.mount(paneIn({ placement: 'dock', bodyRows: 20, bodyColumns: 52 }))
+  await ui.input({ key: 'prompt', text: 'x'.repeat(2000), kind: 'change' })
+  expect((await ui.find({ key: 'prompt' }))?.props.rows).toBe(16)
+  await ui.unmount()
+})
+
+test('inline, the prompt field grows with its text up to the room', async $ => {
+  const ui = await $.ui.mount(paneIn({ placement: 'inline', bodyRows: 20, bodyColumns: 52 }))
+  expect((await ui.find({ key: 'prompt' }))?.props.rows).toBe(3)
+
+  // 38 columns of field: 5 rows of text and one spare.
+  await ui.input({ key: 'prompt', text: 'x'.repeat(38 * 5), kind: 'change' })
+  expect((await ui.find({ key: 'prompt' }))?.props.rows).toBe(6)
+
+  await ui.input({ key: 'prompt', text: 'x'.repeat(2000), kind: 'change' })
+  expect((await ui.find({ key: 'prompt' }))?.props.rows).toBe(16)
+  await ui.unmount()
+})
+
+test('the btw field grows with its question, up to a third of the pane', async $ => {
+  const ui = await $.ui.mount(paneIn({ placement: 'dock', bodyRows: 30, bodyColumns: 52 }))
+  await ui.press({ key: 'tab-btw' })
+  expect((await ui.find({ key: 'btw' }))?.props.rows).toBe(2)
+
+  await ui.input({ key: 'btw', text: 'x'.repeat(2000), kind: 'change' })
+  expect((await ui.find({ key: 'btw' }))?.props.rows).toBe(10)
   await ui.unmount()
 })

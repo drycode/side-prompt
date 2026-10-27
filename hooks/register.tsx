@@ -2,6 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import { AFFIRMATIONS } from './affirmations'
+import { btwRows, fieldColumns, promptRows, submitLabelFor } from './fit'
 
 const PANE = 'side-prompt'
 // The `$.store` key that remembers the pane was open when the session ended.
@@ -19,6 +20,10 @@ const isPaneOpen = atom({ plugin: 'side-prompt', key: 'isPaneOpen' } as const, f
 const tab = atom({ plugin: 'side-prompt', key: 'tab' } as const, 'prompt')
 
 const TABS = ['prompt', 'btw'] as const
+
+// Shortest first; `submitLabelFor` picks the one that leaves the field the most room.
+const PROMPT_LABELS = ['send', 'send prompt', 'send · esc to main'] as const
+const BTW_LABELS = ['ask', 'ask Claude', 'ask · esc to main'] as const
 
 const NO_ANSWER: Record<string, string> = {
   'nothing-to-fork': 'Nothing to ask about yet: send a prompt first (or you just ran /clear).',
@@ -158,6 +163,9 @@ export const register: Register = on => {
       read($, affirmationAt),
       read($, tab),
     ])
+    const { bodyColumns, placement, scroll } = e.props
+    const promptLabel = submitLabelFor(bodyColumns, PROMPT_LABELS)
+    const btwLabel = submitLabelFor(bodyColumns, BTW_LABELS)
 
     const selectTab = async (name: (typeof TABS)[number]) => {
       await update($, tab, () => name)
@@ -238,9 +246,13 @@ export const register: Register = on => {
           <Input
             key="prompt"
             placeholder="Type here while you scroll"
-            rows={5}
+            rows={promptRows(promptText, {
+              placement,
+              bodyRows: scroll.bodyRows,
+              columns: fieldColumns(bodyColumns, promptLabel),
+            })}
             autoFocus
-            submitLabel="send"
+            submitLabel={promptLabel}
             value={promptText}
             onInput={value => void update($, prompt, () => value)}
             onSubmit={value => void sendPrompt(value)}
@@ -249,14 +261,19 @@ export const register: Register = on => {
           <Input
             key="btw"
             placeholder="Side question about this session"
+            rows={btwRows(btwText, { bodyRows: scroll.bodyRows, columns: fieldColumns(bodyColumns, btwLabel) })}
             autoFocus
-            submitLabel="ask"
+            submitLabel={btwLabel}
             value={btwText}
             onInput={value => void update($, btw, () => value)}
             onSubmit={value => void askBtw(value)}
           />
         )}
-        {noteText !== '' && <Text dimColor>{noteText}</Text>}
+        {noteText !== '' && (
+          <Text dimColor wrap="truncate-end">
+            {noteText}
+          </Text>
+        )}
         {activeTab === 'btw' && answerText !== '' && (
           <Box flexDirection="column">
             <Box borderStyle="round" paddingX={1}>

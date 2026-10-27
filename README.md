@@ -47,14 +47,15 @@ claude --plugin-dir ./side-prompt
 
 ### The two tabs
 
-- **prompt**: Enter sends the text as a normal prompt. It waits until Claude is idle. `@file` mentions and pasted images are not expanded.
-- **btw**: Enter asks a one-off question over the session so far, with no tools, and shows the answer in a box labeled `btw` under the field, plus a toast. It is not the built-in `/btw` and its answer is not added to the transcript. Each ask costs tokens and takes a while on a long session (12s idle, 21s mid-response in one check). It has nothing to answer in a new session or right after `/clear`.
+- **prompt**: Enter sends the text as a normal prompt. It waits until Claude is idle. `@file` mentions and pasted images are not expanded. Docked, the field fills the pane; inline, it grows with its text.
+- **btw**: Enter asks a one-off question over the session so far, with no tools, and shows the answer in a box labeled `btw` under the field, plus a toast. The field grows with the question. It is not the built-in `/btw` and its answer is not added to the transcript. Each ask costs tokens and takes a while on a long session (12s idle, 21s mid-response in one check). It has nothing to answer in a new session or right after `/clear`.
 
 ## Limits
 
 - The pane docks beside the transcript only in the fullscreen layout at 110 columns or wider. Elsewhere it sits inline above the prompt.
 - A pane the mod opens on its own (the reopen at session start) is held undrawn below 144 columns, or 110 if you opened it before and have not closed it by hand since. `/side` and the button always place it.
 - The built-in prompt box stays; the mod API has no way to hide it.
+- While a field has the keyboard, the engine draws its `⏎` hint in a column beside every row, and adds `· shift+⏎ new line` while the field keeps half the pane. `hooks/fit.ts` picks the submit label that leaves the text the most room (at 52 columns, `send prompt` leaves 38 where `send` left 26). It models Claude Code 2.1.311; a later build may lay the field out differently.
 - Checked in a live session: the btw field answering while Claude was still working, the button opening the pane, the tabs with the cursor landing in the field, and the `btw` label on the answer box.
 - Not yet checked in a live session: the button's right alignment, `/side` while Claude is working, scrolling the transcript with the mouse wheel while the pane has focus, reopening in a new session, and closing with `ctrl+x x` keeping it closed.
 
