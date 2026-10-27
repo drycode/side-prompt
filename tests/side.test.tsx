@@ -1,4 +1,4 @@
-import type { CommandInfo } from 'claude-code'
+import type { CommandInfo, On } from 'claude-code'
 import { expect, test } from 'claude-code/testing'
 
 import { AFFIRMATIONS } from '../hooks/affirmations'
@@ -556,5 +556,133 @@ test('while the draft is a slash command, the row under it lists what it could b
 
   await ui.input({ key: 'prompt', text: '/zz', kind: 'change' })
   expect(await ui.find({ type: 'Text', text: /No command starts with \/zz/ })).toBeDefined()
+  await ui.unmount()
+})
+
+// Answers each fork with the next of `replies`, and keeps the prompts it was asked.
+const forkAnswering = (on: On, replies: string[]) => {
+  const asked: string[] = []
+  on('clock.now', () => ({ value: 1000 }))
+  on('ui.toast', () => ({ value: undefined }))
+  on('model.fork', (_, e) => {
+    asked.push(e.prompt)
+
+    return { value: { ...FORK_ANSWER.value, text: replies[asked.length - 1] ?? '' } }
+  })
+
+  return asked
+}
+
+test('a btw follow-up carries the thread so far, and the newest answer shows first', async ($, on) => {
+  const asked = forkAnswering(on, ['four', 'eight'])
+
+  const ui = await $.ui.mount(PANE)
+  await ui.press({ key: 'tab-btw' })
+  await ui.input({ key: 'btw', text: 'what is 2+2', kind: 'submit' })
+  await ui.input({ key: 'btw', text: 'and doubled?', kind: 'submit' })
+
+  expect(asked[0]).toBe('what is 2+2')
+  expect(asked[1]).toContain('Q: what is 2+2\nA: four')
+  expect(asked[1]).toMatch(/Next question: and doubled\?$/)
+  expect((await ui.findAll({ type: 'Markdown' })).map(found => found.text)).toEqual(['eight', 'four'])
+  await ui.unmount()
+})
+
+test('clear empties the thread, and the next question starts afresh', async ($, on) => {
+  const asked = forkAnswering(on, ['four', 'blue'])
+
+  const ui = await $.ui.mount(PANE)
+  await ui.press({ key: 'tab-btw' })
+  expect(await ui.find({ key: 'clear' })).toBeUndefined()
+  await ui.input({ key: 'btw', text: 'what is 2+2', kind: 'submit' })
+  await ui.press({ key: 'clear' })
+
+  expect(await ui.find({ type: 'Markdown' })).toBeUndefined()
+  expect(await ui.find({ key: 'add' })).toBeUndefined()
+  await ui.input({ key: 'btw', text: 'what color is the sky', kind: 'submit' })
+  expect(asked[1]).toBe('what color is the sky')
+  await ui.unmount()
+})
+
+test('add to session appends the thread as a row Claude reads, and logs a line', async ($, on) => {
+  forkAnswering(on, ['four'])
+  const rows: { type: string; content: unknown }[] = []
+  const logged: string[] = []
+  on('session.append', (_, e, next) => {
+    rows.push({ type: e.message.type, content: e.message.content })
+
+    return next(e)
+  })
+  on('ui.log', (_, e) => {
+    logged.push(e.text)
+
+    return { value: undefined }
+  })
+
+  const ui = await $.ui.mount(PANE)
+  await ui.press({ key: 'tab-btw' })
+  await ui.input({ key: 'btw', text: 'what is 2+2', kind: 'submit' })
+  await ui.press({ key: 'add' })
+
+  expect(rows.map(row => row.type)).toEqual(['user'])
+  expect(JSON.stringify(rows[0]?.content)).toContain('Q: what is 2+2\\nA: four')
+  expect(logged).toEqual(['btw: added 1 side question to the conversation'])
+  expect(await ui.find({ type: 'Text', text: /Added 1 side question/ })).toBeDefined()
+  // The thread stays until the person clears it.
+  expect((await ui.find({ type: 'Markdown' }))?.text).toBe('four')
+  await ui.unmount()
+})
+
+test('a refused add says why and logs nothing', async ($, on) => {
+  forkAnswering(on, ['four'])
+  const types: string[] = []
+  on('session.append', (_, e) => {
+    types.push(e.message.type)
+
+    return { deny: 'not in this session' }
+  })
+  const logged: string[] = []
+  on('ui.log', (_, e) => {
+    logged.push(e.text)
+
+    return { value: undefined }
+  })
+
+  const ui = await $.ui.mount(PANE)
+  await ui.press({ key: 'tab-btw' })
+  await ui.input({ key: 'btw', text: 'what is 2+2', kind: 'submit' })
+  await ui.press({ key: 'add' })
+
+  expect(types).toEqual(['user'])
+  expect(logged).toEqual([])
+  expect(await ui.find({ type: 'Text', text: /Not added: not in this session/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('add to session adds only what is new since the last add', async ($, on) => {
+  forkAnswering(on, ['four', 'eight'])
+  const added: string[] = []
+  on('session.append', (_, e, next) => {
+    if (e.message.type === 'user') {
+      added.push(JSON.stringify(e.message.content))
+    }
+
+    return next(e)
+  })
+
+  const ui = await $.ui.mount(PANE)
+  await ui.press({ key: 'tab-btw' })
+  await ui.input({ key: 'btw', text: 'what is 2+2', kind: 'submit' })
+  await ui.press({ key: 'add' })
+  // Nothing new to add: the button gives way until there is.
+  expect(await ui.find({ key: 'add' })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /^added to session$/ })).toBeDefined()
+
+  await ui.input({ key: 'btw', text: 'and doubled?', kind: 'submit' })
+  await ui.press({ key: 'add' })
+
+  expect(added).toHaveLength(2)
+  expect(added[1]).toContain('and doubled?')
+  expect(added[1]).not.toContain('what is 2+2')
   await ui.unmount()
 })

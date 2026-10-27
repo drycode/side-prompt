@@ -2,6 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { CommandInfo, EngineInterface, Register } from 'claude-code'
 
 import { AFFIRMATIONS } from './affirmations'
+import { countOf, forkPrompt, sessionText } from './btw'
 import { btwRows, fieldColumns, promptRows, submitLabelFor } from './fit'
 import { parseSlash, resolveCommand, slashHint } from './slash'
 import type { SlashCommand } from './slash'
@@ -15,7 +16,10 @@ const btw = atom({ plugin: 'side-prompt', key: 'btw' } as const, '')
 // Change the tag when what `note` holds changes: it declines the value an
 // earlier version stored, which outlives a reload.
 const note = atom({ plugin: 'side-prompt', key: 'note' } as const, '', { shape: 'note-2' })
-const answer = atom({ plugin: 'side-prompt', key: 'answer' } as const, '')
+// Each btw question follows on from the ones before it until the person clears them.
+const thread = atom({ plugin: 'side-prompt', key: 'thread' } as const, [], { shape: 'thread-1' })
+// How many of the thread's exchanges are already in the main conversation.
+const added = atom({ plugin: 'side-prompt', key: 'added' } as const, 0)
 const isWorking = atom({ plugin: 'side-prompt', key: 'isWorking' } as const, false)
 const affirmationAt = atom({ plugin: 'side-prompt', key: 'affirmationAt' } as const, 0)
 const isPaneOpen = atom({ plugin: 'side-prompt', key: 'isPaneOpen' } as const, false)
@@ -139,10 +143,10 @@ const askBtw = async ($: EngineInterface, text: string) => {
   await update($, note, () => 'Asking...')
   const startedAt = await $.clock.now()
   try {
-    const reply = await $.model.fork({ prompt: text })
+    const reply = await $.model.fork({ prompt: forkPrompt(await read($, thread), text) })
     if (reply.isAnswered) {
       const took = `${(((await $.clock.now()) - startedAt) / 1000).toFixed(1)}s`
-      await update($, answer, () => reply.text)
+      await update($, thread, exchanges => [...exchanges, { question: text, answer: reply.text }])
       await update($, note, () => '')
       $.ui.toast(`btw answered (${took})`)
     } else {
@@ -155,6 +159,39 @@ const askBtw = async ($: EngineInterface, text: string) => {
   } catch (error) {
     await fail(`Question failed: ${messageOf(error)}`)
   }
+}
+
+// Adds the thread to the main conversation as a row Claude reads on its next
+// request, without starting a turn, and logs a line the person can see.
+// Only the exchanges since the last add go in, so a second press adds nothing twice.
+const addThread = async ($: EngineInterface) => {
+  const [whole, addedCount] = await Promise.all([read($, thread), read($, added)])
+  const exchanges = whole.slice(addedCount)
+  if (exchanges.length === 0) {
+    return
+  }
+  try {
+    const appended = await $.session.append({
+      message: { type: 'user', content: [{ type: 'text', text: sessionText(exchanges) }] },
+    })
+    if (appended.deny !== undefined) {
+      await update($, note, () => `Not added: ${appended.deny}`)
+
+      return
+    }
+    await update($, added, () => whole.length)
+    // A dim line in the transcript, for the person: the model never reads it.
+    $.ui.log(`btw: added ${countOf(exchanges)} to the conversation`)
+    await update($, note, () => `Added ${countOf(exchanges)}; Claude reads them on its next request.`)
+  } catch (error) {
+    await update($, note, () => `Not added: ${messageOf(error)}`)
+  }
+}
+
+const clearThread = async ($: EngineInterface) => {
+  await update($, thread, () => [])
+  await update($, added, () => 0)
+  await update($, note, () => '')
 }
 
 // Editing the draft retires the last note, so the row under the field can
@@ -271,11 +308,12 @@ export const register: Register = on => {
     }
 
     const { Box, Text, Button, Input, Markdown } = $.ui.resolve(e)
-    const [promptText, btwText, noteText, answerText, isBusy, affirmation, activeTab] = await Promise.all([
+    const [promptText, btwText, noteText, exchanges, addedCount, isBusy, affirmation, activeTab] = await Promise.all([
       read($, prompt),
       read($, btw),
       read($, note),
-      read($, answer),
+      read($, thread),
+      read($, added),
       read($, isWorking),
       read($, affirmationAt),
       read($, tab),
@@ -336,10 +374,28 @@ export const register: Register = on => {
             {footer}
           </Text>
         )}
-        {activeTab === 'btw' && answerText !== '' && (
+        {activeTab === 'btw' && exchanges.length > 0 && (
+          <Box gap={1}>
+            {exchanges.length > addedCount ? (
+              <Button key="add" label="add to session" onPress={() => void addThread($)} />
+            ) : (
+              <Text dimColor>added to session</Text>
+            )}
+            <Button key="clear" label="clear" onPress={() => void clearThread($)} />
+          </Box>
+        )}
+        {activeTab === 'btw' && exchanges.length > 0 && (
           <Box flexDirection="column">
-            <Box borderStyle="round" paddingX={1}>
-              <Markdown text={answerText} />
+            {/* Newest first, so the latest answer sits under the field. */}
+            <Box borderStyle="round" paddingX={1} flexDirection="column" gap={1}>
+              {exchanges
+                .map((exchange, at) => (
+                  <Box key={`exchange-${at}`} flexDirection="column">
+                    <Text dimColor>› {exchange.question}</Text>
+                    <Markdown text={exchange.answer} />
+                  </Box>
+                ))
+                .reverse()}
             </Box>
             {/* The border paints over its own children, so the label is a later
                 sibling, laid on the top border row: ╭── btw ───╮ */}

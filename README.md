@@ -49,7 +49,9 @@ claude --plugin-dir ./side-prompt
 
 - **prompt**: Enter sends the text as a normal prompt. It waits until Claude is idle. `@file` mentions and pasted images are not expanded. Docked, the field fills the pane; inline, it grows with its text.
   - Text that starts with `/` runs as a slash command (`/compact`, `/review the diff`), once Claude is idle. While you type one, the row under the field lists the commands it could become, and after a space, what that command does. A plugin's command also answers to its bare name when no other command shares it.
-- **btw**: Enter asks a one-off question over the session so far, with no tools, and shows the answer in a box labeled `btw` under the field, plus a toast. The field grows with the question. It is not the built-in `/btw` and its answer is not added to the transcript. Each ask costs tokens and takes a while on a long session (12s idle, 21s mid-response in one check). It has nothing to answer in a new session or right after `/clear`.
+- **btw**: Enter asks a question over the session so far, with no tools, and shows the answer in a box labeled `btw` under the field, newest first, plus a toast. The field grows with the question. It is not the built-in `/btw` and its answers are not added to the transcript unless you add them. Each ask costs tokens and takes a while on a long session (12s idle, 21s mid-response in one check). It has nothing to answer in a new session or right after `/clear`.
+  - Each question follows on from the ones before it: a fork answers one message, so a follow-up carries the thread so far in its prompt. **clear** starts a new thread.
+  - **add to session** adds the thread to the main conversation as a row Claude reads on its next request. It starts no turn, works while Claude is busy, and logs a dim `btw: added ...` line in the transcript. A later add brings only the questions asked since. The thread stays until you clear it.
 
 ## Limits
 
